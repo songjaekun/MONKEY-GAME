@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>몽키 사다리 게임</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐒</text></svg>">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg:#0d0b18;
+    --bg2:#181228;
+    --card:#1b1630;
+    --card2:#241d42;
+    --ink:#f6f3ff;
+    --muted:#a79fcf;
+    --line:#3c3564;
+    --accent:#f0c064;
+    --accent2:#d9973f;
+    --accent-ink:#231604;
+    --good:#4cd5c0;
+    --danger:#ff5d8f;
+    --radius:20px;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  :root:not([data-theme="light"]){ }
+  :root[data-theme="light"]{
+    --bg:#faf6ec;
+    --bg2:#f2e9d6;
+    --card:#ffffff;
+    --card2:#fbf3e2;
+    --ink:#241c33;
+    --muted:#786f93;
+    --line:#e6d9b8;
+    --accent:#c8892c;
+    --accent2:#a86c1c;
+    --accent-ink:#fffaf0;
+    --good:#0f9b86;
+    --danger:#d6336c;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#faf6ec;
+      --bg2:#f2e9d6;
+      --card:#ffffff;
+      --card2:#fbf3e2;
+      --ink:#241c33;
+      --muted:#786f93;
+      --line:#e6d9b8;
+      --accent:#c8892c;
+      --accent2:#a86c1c;
+      --accent-ink:#fffaf0;
+      --good:#0f9b86;
+      --danger:#d6336c;
+    }
+  }
+  html{ scroll-padding-top:env(safe-area-inset-top,0px); }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:
+      radial-gradient(720px 420px at 50% -8%, rgba(240,192,100,0.14), transparent 60%),
+      linear-gradient(165deg,var(--bg),var(--bg2));
+    color:var(--ink);
+    font-family:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    min-height:100%;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #root{
+    max-width:640px;
+    margin:0 auto;
+    padding:22px 16px 40px;
+    position:relative;
+    z-index:1;
+  }
+  @media (min-width:700px){
+    #root{ max-width:880px; padding:28px 28px 48px; }
+  }
+  @media (min-width:1000px){
+    #root{ max-width:1080px; padding:32px 36px 56px; }
+  }
+  .bg-monkey{
+    position:fixed;
+    left:50%;
+    top:4%;
+    transform:translateX(-50%);
+    width:340px;
+    height:340px;
+    opacity:0.18;
+    pointer-events:none;
+    z-index:0;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]) .bg-monkey{ opacity:0.10; }
+  }
+  :root[data-theme="light"] .bg-monkey{ opacity:0.10; }
+  .mk-banana{
+    transform-origin:163px 108px;
+    animation:mkBite 1.8s ease-in-out infinite;
+  }
+  @keyframes mkBite{
+    0%,100%{ transform:translate(0,0) rotate(0deg); }
+    35%,50%{ transform:translate(-16px,-20px) rotate(-14deg); }
+    70%,100%{ transform:translate(0,0) rotate(0deg); }
+  }
+  .mk-mouth{
+    transform-origin:100px 132px;
+    animation:mkChomp 1.8s ease-in-out infinite;
+  }
+  @keyframes mkChomp{
+    0%,30%{ transform:scaleY(1); }
+    40%,55%{ transform:scaleY(1.2); }
+    70%,100%{ transform:scaleY(1); }
+  }
+  .mk-eyes{
+    animation:mkBlink 4.2s ease-in-out infinite;
+    transform-origin:100px 98px;
+  }
+  @keyframes mkBlink{
+    0%,92%,100%{ transform:scaleY(1); }
+    95%{ transform:scaleY(0.1); }
+  }
+  .mk-head{
+    animation:mkBob 1.8s ease-in-out infinite;
+    transform-origin:100px 187px;
+  }
+  @keyframes mkBob{
+    0%,100%{ transform:rotate(0deg); }
+    40%{ transform:rotate(-3deg); }
+    70%{ transform:rotate(2deg); }
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:9px;
+    margin-bottom:20px;
+  }
+  .brand .mark{ font-size:34px; filter:drop-shadow(0 2px 6px rgba(240,192,100,0.35)); }
+  .brand h1{
+    font-size:29px;
+    margin:0;
+    letter-spacing:-0.01em;
+    font-weight:800;
+    background:linear-gradient(120deg, var(--ink), var(--accent) 85%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .card{
+    background:linear-gradient(175deg, var(--card), var(--card2) 140%);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:14px;
+    box-shadow:0 14px 34px rgba(0,0,0,0.32), 0 1px 0 rgba(255,255,255,0.04) inset;
+    border:1px solid rgba(240,192,100,0.10);
+  }
+  @media (min-width:700px){
+    .card{ padding:26px; margin-bottom:18px; }
+  }
+  @media (prefers-color-scheme:light){
+    .card{ border-color:rgba(0,0,0,0.06); box-shadow:0 10px 26px rgba(120,95,40,0.12); }
+  }
+  :root[data-theme="light"] .card{ border-color:rgba(0,0,0,0.06); box-shadow:0 10px 26px rgba(120,95,40,0.12); }
+  .muted{ color:var(--muted); font-size:13.5px; line-height:1.55; }
+  h2{ font-size:17px; margin:0 0 4px; font-weight:800; letter-spacing:-0.01em; }
+  .field-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:9px;
+  }
+  .field-idx{
+    flex:0 0 30px;
+    height:30px;
+    border-radius:9px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+    font-size:13px;
+    color:#1a1530;
+  }
+  .field-row input[type=text]{
+    flex:1;
+    min-width:0;
+    padding:9px 12px;
+    border-radius:10px;
+    border:1.5px solid var(--line);
+    background:var(--card2);
+    color:var(--ink);
+    font-size:15px;
+    font-family:inherit;
+  }
+  .field-row input[type=text]:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .field-remove{
+    flex:0 0 auto;
+    width:30px;
+    height:30px;
+    border-radius:9px;
+    border:none;
+    background:transparent;
+    color:var(--muted);
+    font-size:17px;
+    cursor:pointer;
+  }
+  .field-remove:hover{ color:var(--danger); }
+  .btn{
+    appearance:none;
+    border:none;
+    border-radius:12px;
+    padding:12px 18px;
+    font-size:15px;
+    font-weight:800;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .btn-primary{
+    background:linear-gradient(135deg, #f6d488, var(--accent) 55%, var(--accent2));
+    color:var(--accent-ink);
+    width:100%;
+    box-shadow:0 10px 24px rgba(217,151,63,0.32);
+  }
+  .btn-primary:disabled{ opacity:0.4; cursor:not-allowed; box-shadow:none; }
+  .btn-ghost{ background:transparent; color:var(--muted); border:1.5px dashed var(--line); width:100%; }
+  .btn-text{ background:none; color:var(--muted); font-weight:700; font-size:13px; padding:6px 4px; }
+  .row{ display:flex; gap:10px; }
+  .row > *{ flex:1; }
+  .top-actions{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:10px;
+  }
+  .icon-btn{
+    background:var(--card);
+    border:1px solid rgba(255,255,255,0.08);
+    color:var(--muted);
+    border-radius:10px;
+    padding:7px 12px;
+    font-size:12.5px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .name-input{
+    width:100%;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1.5px solid var(--line);
+    background:var(--card2);
+    color:var(--ink);
+    font-size:15px;
+    font-family:inherit;
+    margin-bottom:10px;
+  }
+  .name-input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .hint{ font-size:13px; color:var(--muted); margin:2px 0 12px; }
+  .ladder-scroll{
+    overflow-x:auto;
+    overflow-y:hidden;
+    margin:0 -4px 4px;
+    padding:0 4px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .ladder-scroll svg{ display:block; }
+  .col-btn{ cursor:pointer; }
+  .col-btn circle{ transition:transform .12s ease; }
+  .col-btn:active circle{ transform:scale(0.92); transform-origin:center; }
+  .col-btn.taken{ cursor:default; }
+  .result-log{ margin-top:4px; }
+  .log-empty{ color:var(--muted); font-size:13.5px; padding:6px 2px; }
+  .log-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 4px;
+    border-bottom:1px solid var(--line);
+    font-size:14px;
+  }
+  .log-item:last-child{ border-bottom:none; }
+  .log-badge{
+    flex:0 0 auto;
+    min-width:26px;
+    height:26px;
+    padding:0 6px;
+    border-radius:8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+    font-size:12.5px;
+    color:#1a1530;
+  }
+  .log-name{ font-weight:700; }
+  .log-arrow{ color:var(--muted); }
+  .log-result{ font-weight:700; color:var(--good); }
+  .log-result-wrap{ display:flex; align-items:baseline; gap:7px; flex-wrap:wrap; }
+  .log-win{ font-size:19px; font-weight:800; color:var(--good); }
+  .log-win-tag{
+    background:linear-gradient(135deg, #f6d488, var(--accent) 55%, var(--accent2));
+    color:var(--accent-ink);
+    font-size:11.5px;
+    font-weight:800;
+    padding:2px 8px;
+    border-radius:9px;
+    white-space:nowrap;
+  }
+  .log-notes{
+    font-size:13px;
+    font-weight:700;
+    color:var(--accent);
+    letter-spacing:1px;
+    white-space:nowrap;
+  }
+  .reveal{
+    text-align:center;
+    padding:26px 18px 22px;
+    border-radius:var(--radius);
+    background:linear-gradient(160deg,var(--card2),var(--card));
+    border:1.5px solid var(--accent);
+    box-shadow:0 16px 36px rgba(217,151,63,0.22), 0 14px 34px rgba(0,0,0,0.32);
+    margin-bottom:14px;
+  }
+  .reveal .who{ color:var(--muted); font-size:13.5px; margin-bottom:6px; }
+  .reveal .result{ font-size:26px; font-weight:800; line-height:1.3; word-break:keep-all; }
+  .reveal .num{ font-size:13px; color:var(--muted); margin-top:8px; }
+  .loading{ text-align:center; padding:60px 0; color:var(--muted); }
+  .banner{
+    font-size:13px;
+    color:var(--muted);
+    background:var(--card2);
+    border-radius:12px;
+    padding:10px 12px;
+    margin-bottom:14px;
+    line-height:1.5;
+  }
+  .footer-note{ text-align:center; color:var(--muted); font-size:12px; margin-top:18px; line-height:1.6; }
+
+  .confetti-layer{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    overflow:hidden;
+    z-index:9999;
+  }
+  .confetti-piece, .ribbon-piece{
+    position:absolute;
+    bottom:-12px;
+    border-radius:2px;
+    opacity:0.95;
+    animation-name:confettiBurst;
+    animation-timing-function:cubic-bezier(.18,.7,.3,1);
+    animation-fill-mode:forwards;
+  }
+  .ribbon-piece{
+    border-radius:3px;
+  }
+  @keyframes confettiBurst{
+    0%{ transform:translate(0,0) rotate(0deg); opacity:1; }
+    42%{ transform:translate(var(--dxm,0), var(--peak,-70vh)) rotate(var(--rotm,220deg)); opacity:1; }
+    100%{ transform:translate(var(--dx,0), 24vh) rotate(var(--rot,640deg)); opacity:0.85; }
+  }
+  .popper-cone{
+    position:fixed;
+    bottom:-14px;
+    transform:translateX(-50%);
+    font-size:76px;
+    line-height:1;
+    pointer-events:none;
+    animation:popperPop 0.7s cubic-bezier(.2,.8,.3,1) forwards;
+    transform-origin:bottom center;
+    filter:drop-shadow(0 6px 10px rgba(0,0,0,0.28));
+  }
+  @keyframes popperPop{
+    0%{ transform:translateX(-50%) scale(0.2) rotate(0deg); opacity:0; }
+    35%{ transform:translateX(-50%) scale(1.3) rotate(-10deg); opacity:1; }
+    65%{ transform:translateX(-50%) scale(1) rotate(6deg); opacity:1; }
+    100%{ transform:translateX(-50%) scale(0.85) rotate(0deg); opacity:0; }
+  }
+  .celebrate-banner{
+    position:fixed;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-46%) scale(0.9);
+    background:linear-gradient(160deg, var(--card2), var(--card));
+    border:2px solid var(--accent);
+    color:var(--ink);
+    padding:30px 26px;
+    border-radius:24px;
+    opacity:0;
+    transition:opacity .35s ease, transform .35s ease;
+    z-index:10000;
+    pointer-events:none;
+    box-shadow:0 24px 60px rgba(0,0,0,0.45);
+    white-space:pre-line;
+    text-align:center;
+    max-width:88vw;
+  }
+  .celebrate-banner.show{
+    opacity:1;
+    transform:translate(-50%,-50%) scale(1);
+  }
+  .cb-sub{ font-size:14px; font-weight:700; color:var(--muted); margin-bottom:12px; }
+  .cb-winner{
+    font-size:34px;
+    font-weight:800;
+    line-height:1.25;
+    word-break:keep-all;
+    background:linear-gradient(120deg, var(--ink), var(--accent) 85%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .cb-congrats{ font-size:24px; font-weight:800; color:var(--accent); margin-top:8px; }
+  .count-row{ display:flex; align-items:center; justify-content:center; gap:18px; }
+  .count-btn{
+    width:44px;
+    height:44px;
+    border-radius:50%;
+    border:none;
+    background:var(--accent);
+    color:var(--accent-ink);
+    font-size:22px;
+    font-weight:800;
+    cursor:pointer;
+    line-height:1;
+  }
+  .count-btn:disabled{ opacity:0.35; cursor:not-allowed; }
+  .count-value{ font-size:22px; font-weight:800; min-width:64px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="bg-monkey" aria-hidden="true">
+<svg viewBox="0 0 200 200" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <g class="mk-head">
+    <circle cx="34" cy="70" r="26" fill="#4a3226"/>
+    <circle cx="166" cy="70" r="26" fill="#4a3226"/>
+    <circle cx="34" cy="70" r="14" fill="#caa27a"/>
+    <circle cx="166" cy="70" r="14" fill="#caa27a"/>
+    <circle cx="100" cy="105" r="82" fill="#8b5a2b"/>
+    <ellipse cx="100" cy="130" rx="56" ry="46" fill="#f0dfc0"/>
+    <ellipse cx="62" cy="128" rx="12" ry="8" fill="#f2a79c" opacity="0.7"/>
+    <ellipse cx="138" cy="128" rx="12" ry="8" fill="#f2a79c" opacity="0.7"/>
+    <path d="M62,80 Q80,68 96,78" stroke="#4a3226" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M104,78 Q120,68 138,80" stroke="#4a3226" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <g class="mk-eyes">
+      <ellipse cx="78" cy="98" rx="13" ry="15" fill="#fff"/>
+      <ellipse cx="122" cy="98" rx="13" ry="15" fill="#fff"/>
+      <circle cx="80" cy="102" r="6.5" fill="#241a10"/>
+      <circle cx="124" cy="102" r="6.5" fill="#241a10"/>
+      <circle cx="83" cy="98" r="2.2" fill="#fff"/>
+      <circle cx="127" cy="98" r="2.2" fill="#fff"/>
+    </g>
+    <ellipse cx="100" cy="122" rx="8" ry="6" fill="#c9946a" opacity="0.6"/>
+    <g class="mk-mouth">
+      <path d="M56,132 Q100,188 144,132 Q100,158 56,132 Z" fill="#5c2a1a"/>
+      <rect x="64" y="129" width="72" height="17" rx="7" fill="#ffffff"/>
+    </g>
+    <path d="M146,158 Q176,168 172,128" stroke="#8b5a2b" stroke-width="20" fill="none" stroke-linecap="round"/>
+    <g class="mk-banana">
+      <path d="M164,118 Q192,100 178,70 Q168,96 152,108 Z" fill="#f4d24f" stroke="#c99a1c" stroke-width="2.5"/>
+    </g>
+  </g>
+</svg>
+</div>
+<div id="root"><div class="loading">불러오는 중…</div></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var COLORS = ["#FF5D8F","#4CD5C0","#FFD166","#7C83FD","#34E4A0","#FF9F6B","#5CC8FF","#C792FF","#F76E6E","#48C9B0","#F6C453","#9D8CFF"];
+  function colorOf(i){ return COLORS[i % COLORS.length]; }
+
+  var root = document.getElementById("root");
+  var db = null;
+  var gameRef = null;
+  var picksRef = null;
+  var localOnly = false;
+  var localDoc = null;          // {status, results, rows, bridges, createdAt, picks} — used only when db is unavailable
+
+  var clientId = "c_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  var myPick = null;            // {col, name} read from localStorage
+  try{
+    var saved = localStorage.getItem("ladder_mypick_v2");
+    if (saved) myPick = JSON.parse(saved);
+  }catch(e){ myPick = null; }
+
+  var localDraftResults = null;
+
+  // shared-mode session state
+  var gameData = null;          // {status, results, rows, bridges, createdAt}
+  var picksMap = {};            // {col: {name, ts}} — mirrored from the "picks" subcollection
+  var gameReady = false;
+  var picksReady = false;
+  var didInitialRender = false;
+  var claimInProgress = false;
+
+  var animatedCols = {};        // columns whose arrival has already been shown on this screen
+  var revealedFinal = {};       // finalCol -> true once that result box has been revealed
+  var layout = null;            // current ladder layout constants, set by renderLive
+
+  function esc(s){
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+
+  function defaultResults(){ return ["", "", "", ""]; }
+
+  // ---------- sound (synthesized, original — no copyrighted audio) ----------
+  var audioCtx = null;
+  function getAudioCtx(){
+    if (!audioCtx){
+      try{
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      }catch(e){ audioCtx = null; }
+    }
+    if (audioCtx && audioCtx.state === "suspended"){
+      audioCtx.resume().catch(function(){});
+    }
+    return audioCtx;
+  }
+  document.addEventListener("pointerdown", function unlockAudio(){
+    getAudioCtx();
+    document.removeEventListener("pointerdown", unlockAudio);
+  }, { once: true });
+
+  function playTone(ctx, freq, startTime, duration, type, peak){
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type || "square";
+    osc.frequency.setValueAtTime(freq, startTime);
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(peak || 0.16, startTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.03);
+  }
+
+  function playMonkeyWalkSound(totalDurationMs){
+    var ctx = getAudioCtx();
+    if (!ctx || ctx.state === "suspended") return;
+    var now = ctx.currentTime;
+    var stepMs = 230;
+    var steps = Math.max(4, Math.floor(totalDurationMs / stepMs));
+    var notes = [523.25, 659.25, 587.33, 698.46];
+    for (var i = 0; i < steps; i++){
+      var t = now + (i * stepMs) / 1000;
+      var freq = notes[i % notes.length];
+      playTone(ctx, freq, t, 0.15, "square", 0.11);
+    }
+  }
+
+  // ~3 second celebratory melody for the final announcement — original
+  // synthesized tune (ascending run -> held chord -> sparkle finish)
+  function playFanfare(){
+    var ctx = getAudioCtx();
+    if (!ctx || ctx.state === "suspended") return;
+    var now = ctx.currentTime;
+    var run = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98];
+    run.forEach(function(f, i){
+      playTone(ctx, f, now + i * 0.15, 0.28, "triangle", 0.22);
+    });
+    var chordAt = now + run.length * 0.15 + 0.05;
+    [523.25, 659.25, 783.99, 1046.5].forEach(function(f){
+      playTone(ctx, f, chordAt, 1.85, "sawtooth", 0.13);
+    });
+    var sparkleAt = chordAt + 1.85;
+    [2093.0, 2637.02].forEach(function(f, i){
+      playTone(ctx, f, sparkleAt + i * 0.08, 0.18, "triangle", 0.18);
+    });
+  }
+
+  // ---------- celebration visuals ----------
+  var celebratedForCreatedAt = null;
+  function maybeCelebrate(picks, doc){
+    if (!doc || !doc.results) return;
+    var total = doc.results.length;
+    var count = Object.keys(picks || {}).length;
+    if (total > 0 && count >= total && celebratedForCreatedAt !== doc.createdAt){
+      celebratedForCreatedAt = doc.createdAt;
+      var winners = [];
+      Object.keys(picks).forEach(function(k){
+        var col = parseInt(k, 10);
+        var finalCol = traceFinalCol(col, doc.bridges);
+        var text = doc.results[finalCol];
+        if (text && text !== "행운"){
+          winners.push({ name: picks[k].name, result: text });
+        }
+      });
+      celebrate(winners);
+    }
+  }
+
+  function celebrate(winners){
+    playFanfare();
+    spawnConfetti(220);
+    showCelebrationBanner(winners);
+  }
+
+  // a smaller confetti burst the moment someone lands on an actual prize
+  // (anything other than "행운") — separate from the all-done grand finale
+  function checkWinnerConfetti(doc, col){
+    if (!doc || !doc.bridges || !doc.results) return;
+    var finalCol = traceFinalCol(col, doc.bridges);
+    var text = doc.results[finalCol];
+    if (text && text !== "행운"){
+      spawnConfetti(80);
+      playFanfare();
+    }
+  }
+
+  function spawnConfetti(count){
+    count = count || 150;
+    var layerEl = document.createElement("div");
+    layerEl.className = "confetti-layer";
+
+    // big cone-shaped party poppers firing from the bottom
+    var origins = [16, 50, 84]; // vw
+    origins.forEach(function(ox, oi){
+      var cone = document.createElement("span");
+      cone.className = "popper-cone";
+      cone.style.left = ox + "vw";
+      cone.style.animationDelay = (oi * 0.07) + "s";
+      cone.textContent = "🎉";
+      layerEl.appendChild(cone);
+    });
+
+    for (var i = 0; i < count; i++){
+      var isRibbon = i % 5 === 0; // ~1 in 5 pieces is a flying ribbon
+      var piece = document.createElement("span");
+      piece.className = isRibbon ? "ribbon-piece" : "confetti-piece";
+      var origin = origins[i % origins.length] + (Math.random() * 18 - 9);
+      var dx = (Math.random() * 72 - 36).toFixed(1);
+      var dxm = (dx * 0.5 + (Math.random() * 10 - 5)).toFixed(1);
+      var peak = -(55 + Math.random() * 38);
+      var rot = Math.floor(500 + Math.random() * 420);
+      var rotm = Math.floor(rot * 0.4);
+      piece.style.left = origin + "vw";
+      piece.style.setProperty("--dx", dx + "vw");
+      piece.style.setProperty("--dxm", dxm + "vw");
+      piece.style.setProperty("--peak", peak + "vh");
+      piece.style.setProperty("--rot", rot + "deg");
+      piece.style.setProperty("--rotm", rotm + "deg");
+      if (isRibbon){
+        piece.style.width = (4 + Math.random() * 3) + "px";
+        piece.style.height = (34 + Math.random() * 32) + "px";
+      } else {
+        var size = 7 + Math.random() * 8;
+        piece.style.width = size + "px";
+        piece.style.height = (size * 0.42) + "px";
+      }
+      piece.style.background = colorOf(i);
+      piece.style.animationDelay = (Math.random() * 0.4) + "s";
+      piece.style.animationDuration = (2.4 + Math.random() * 2.0) + "s";
+      layerEl.appendChild(piece);
+    }
+    document.body.appendChild(layerEl);
+    setTimeout(function(){ if (layerEl.parentNode) layerEl.remove(); }, 6200);
+  }
+
+  function showCelebrationBanner(winners){
+    var el = document.createElement("div");
+    el.className = "celebrate-banner";
+    var html = '<div class="cb-sub">🎉🐒 전원 결과 발표! 🐒🎉</div>';
+    if (winners && winners.length){
+      var names = winners.map(function(w){ return esc(w.name); }).join(", ");
+      html += '<div class="cb-winner">' + names + '님</div>';
+      html += '<div class="cb-congrats">축하합니다! 🎊</div>';
+    }
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    requestAnimationFrame(function(){ el.classList.add("show"); });
+    setTimeout(function(){
+      el.classList.remove("show");
+      setTimeout(function(){ if (el.parentNode) el.remove(); }, 400);
+    }, 4200);
+  }
+
+  // ---------- ladder generation / tracing ----------
+  function generateBridges(rows, cols){
+    var bridges = [];
+    for (var r = 0; r < rows; r++){
+      var rowArr = new Array(cols - 1).fill(false);
+      var i = 0;
+      while (i < cols - 1){
+        if (Math.random() < 0.42){
+          rowArr[i] = true;
+          i += 2;
+        } else {
+          i += 1;
+        }
+      }
+      bridges.push(rowArr);
+    }
+    return bridges;
+  }
+
+  function traceFinalCol(startCol, bridges){
+    var cur = startCol;
+    for (var r = 0; r < bridges.length; r++){
+      var rowArr = bridges[r];
+      if (cur > 0 && rowArr[cur - 1]) cur = cur - 1;
+      else if (cur < rowArr.length && rowArr[cur]) cur = cur + 1;
+    }
+    return cur;
+  }
+
+  function buildPathPoints(startCol, bridges, xOf, topY, rowH){
+    var cur = startCol;
+    var pts = [[xOf(cur), topY]];
+    for (var r = 0; r < bridges.length; r++){
+      var rowArr = bridges[r];
+      var midY = topY + r * rowH + rowH / 2;
+      var nextY = topY + (r + 1) * rowH;
+      var next = cur;
+      var moved = false;
+      if (cur > 0 && rowArr[cur - 1]) { next = cur - 1; moved = true; }
+      else if (cur < rowArr.length && rowArr[cur]) { next = cur + 1; moved = true; }
+      if (moved){
+        pts.push([xOf(cur), midY]);
+        pts.push([xOf(next), midY]);
+        cur = next;
+      }
+      pts.push([xOf(cur), nextY]);
+    }
+    return { points: pts, finalCol: cur };
+  }
+
+  function pointsToPath(pts){
+    return pts.map(function(p, i){ return (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+  }
+
+  function shortLabel(s, n){
+    n = n || 7;
+    return s.length > n ? s.slice(0, n - 1) + "…" : s;
+  }
+
+  // ---------- rendering ----------
+  function render(){
+    if (localOnly){
+      if (!localDoc){ renderSetup(localDraftResults || defaultResults()); return; }
+      if (localDoc.status === "live"){ renderLive(localDoc, localDoc.picks || {}); }
+      else { renderSetup(localDoc.results && localDoc.results.length ? localDoc.results.slice() : (localDraftResults || defaultResults())); }
+      return;
+    }
+    if (!gameData){
+      renderSetup(localDraftResults || defaultResults());
+      return;
+    }
+    if (gameData.status === "live"){
+      renderLive(gameData, picksMap);
+    } else {
+      renderSetup(gameData.results && gameData.results.length ? gameData.results.slice() : (localDraftResults || defaultResults()));
+    }
+  }
+
+  function renderSetup(results){
+    localDraftResults = results;
+    var html = "";
+    html += '<div class="brand"><span class="mark">🐒</span><h1>몽키 사다리 게임 만들기</h1></div>';
+    if (localOnly){
+      html += '<div class="banner">지금 이 기기에서만 진행돼요. 같은 화면을 여러 사람이 실시간으로 보려면 공유 기능이 지원되는 환경에서 열어주세요.</div>';
+    }
+    html += '<div class="card">';
+    html += '<h2>참가 인원수</h2>';
+    html += '<div class="count-row">';
+    html += '<button class="count-btn" id="countMinus" ' + (results.length <= 2 ? 'disabled' : '') + '>−</button>';
+    html += '<div class="count-value">' + results.length + '명</div>';
+    html += '<button class="count-btn" id="countPlus" ' + (results.length >= 30 ? 'disabled' : '') + '>+</button>';
+    html += '</div>';
+    html += '<div class="muted" style="margin-top:10px; text-align:center;">인원수를 먼저 정하면 그 수만큼 사다리 열과 번호 버튼이 만들어져요. 링크를 받은 사람은 각자 자기 번호만 누르면 돼요.</div>';
+    html += '</div>';
+    html += '<div class="card">';
+    html += '<h2>결과를 입력하세요</h2>';
+    html += '<div class="muted" style="margin-bottom:14px;">각 번호에 어떤 결과가 나올지 자유롭게 입력하세요. 나중에 추가·삭제도 가능해요.</div>';
+    html += '<button class="btn btn-ghost" id="presetCoffeeBtn" style="margin-bottom:14px;">☕ 1명만 커피 당첨 · 나머지 전부 행운</button>';
+    html += '<div id="fieldsWrap">';
+    results.forEach(function(val, i){
+      html += '<div class="field-row" data-idx="' + i + '">';
+      html += '<div class="field-idx" style="background:' + colorOf(i) + '">' + (i + 1) + '</div>';
+      html += '<input type="text" class="result-field" data-idx="' + i + '" maxlength="40" value="' + esc(val) + '">';
+      html += '<button class="field-remove" data-remove="' + i + '" title="삭제">✕</button>';
+      html += '</div>';
+    });
+    html += '</div>';
+    html += '<button class="btn btn-ghost" id="addFieldBtn">+ 결과 추가</button>';
+    html += '</div>';
+    html += '<button class="btn btn-primary" id="startBtn">몽키 사다리 시작하기 (' + results.length + '명)</button>';
+    html += '<div class="footer-note">비워둔 칸은 자동으로 "행운"으로 채워져요. 시작하면 사다리 모양이 무작위로 만들어지고, 링크를 연 모든 사람이 같은 사다리를 보게 돼요.</div>';
+    root.innerHTML = html;
+
+    var countMinus = document.getElementById("countMinus");
+    var countPlus = document.getElementById("countPlus");
+    if (countMinus) countMinus.onclick = function(){
+      var wrap = document.getElementById("fieldsWrap");
+      var vals = Array.prototype.map.call(wrap.querySelectorAll(".result-field"), function(inp){ return inp.value; });
+      if (vals.length > 2) vals.pop();
+      renderSetup(vals);
+    };
+    if (countPlus) countPlus.onclick = function(){
+      var wrap = document.getElementById("fieldsWrap");
+      var vals = Array.prototype.map.call(wrap.querySelectorAll(".result-field"), function(inp){ return inp.value; });
+      if (vals.length < 30) vals.push("");
+      renderSetup(vals);
+    };
+    var presetBtn = document.getElementById("presetCoffeeBtn");
+    if (presetBtn) presetBtn.onclick = function(){
+      var wrap = document.getElementById("fieldsWrap");
+      var vals = Array.prototype.map.call(wrap.querySelectorAll(".result-field"), function(inp){ return inp.value; });
+      if (vals.length < 2) vals = defaultResults();
+      vals = vals.map(function(v, i){ return i === 0 ? "커피 당첨" : "행운"; });
+      renderSetup(vals);
+    };
+
+    document.getElementById("addFieldBtn").onclick = function(){
+      var wrap = document.getElementById("fieldsWrap");
+      var vals = Array.prototype.map.call(wrap.querySelectorAll(".result-field"), function(inp){ return inp.value; });
+      vals.push("");
+      renderSetup(vals);
+      var inputs = document.querySelectorAll(".result-field");
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    };
+    root.querySelectorAll(".field-remove").forEach(function(btn){
+      btn.onclick = function(){
+        var idx = parseInt(btn.getAttribute("data-remove"), 10);
+        var wrap = document.getElementById("fieldsWrap");
+        var vals = Array.prototype.map.call(wrap.querySelectorAll(".result-field"), function(inp){ return inp.value; });
+        vals.splice(idx, 1);
+        if (vals.length === 0) vals = defaultResults();
+        renderSetup(vals);
+      };
+    });
+    root.querySelectorAll(".result-field").forEach(function(inp){
+      inp.oninput = function(){
+        var wrap = document.getElementById("fieldsWrap");
+        var vals = Array.prototype.map.call(wrap.querySelectorAll(".result-field"), function(inp2){ return inp2.value; });
+        localDraftResults = vals;
+      };
+    });
+    document.getElementById("startBtn").onclick = startLadder;
+  }
+
+  function clearPicksCollection(){
+    if (!picksRef) return Promise.resolve();
+    return picksRef.remove().catch(function(err){ console.error(err); });
+  }
+
+  function shuffleArray(arr){
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  function startLadder(){
+    var wrap = document.getElementById("fieldsWrap");
+    var raw = wrap ? Array.prototype.map.call(wrap.querySelectorAll(".result-field"), function(inp){ return inp.value; }) : (localDraftResults || []);
+    if (raw.length < 2) return;
+    var vals = raw.map(function(v){
+      var t = (v || "").trim();
+      return t.length > 0 ? t : "행운";
+    });
+    vals = shuffleArray(vals); // randomize which bottom slot holds which result
+    var cols = vals.length;
+    var rows = 15;
+    var bridges = generateBridges(rows, cols);
+    var newDoc = { status: "live", results: vals, rows: rows, bridges: bridges, createdAt: Date.now() };
+
+    if (localOnly){
+      localDoc = Object.assign({}, newDoc, { picks: {} });
+      render();
+      return;
+    }
+    clearPicksCollection().then(function(){
+      return gameRef.set(newDoc);
+    }).catch(function(err){
+      console.error(err);
+      localOnly = true;
+      localDoc = Object.assign({}, newDoc, { picks: {} });
+      render();
+    });
+  }
+
+  function resetGame(){
+    var blank = { status: "setup", results: [], rows: 0, bridges: [], createdAt: Date.now() };
+    try{ localStorage.removeItem("ladder_mypick_v2"); }catch(e){}
+    myPick = null;
+    if (localOnly){
+      localDoc = Object.assign({}, blank, { picks: {} });
+      localDraftResults = defaultResults();
+      render();
+      return;
+    }
+    clearPicksCollection().then(function(){
+      return gameRef.set(blank);
+    }).catch(function(err){
+      console.error(err);
+      render();
+    });
+  }
+
+  function participateCardHtml(){
+    var html = '<div class="card" id="participateCard">';
+    html += '<h2>참여하기</h2>';
+    html += '<div class="hint">이름을 입력하고 번호를 누르면 몽키가 총총 걸어서 결과를 알려줘요. 이 화면에서 여러 명이 번갈아 눌러도 돼요.</div>';
+    html += '<input type="text" class="name-input" id="nameInput" maxlength="12" placeholder="이름을 입력하세요">';
+    html += '<div class="muted" id="pickHint" style="min-height:18px;"></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function allDoneCardHtml(){
+    return '<div class="card"><h2>모든 번호가 선택됐어요</h2><div class="muted">전원의 결과가 곧 모두 열려요.</div></div>';
+  }
+
+  function revealCardHtml(doc, mp){
+    var finalCol = traceFinalCol(mp.col, doc.bridges);
+    var html = '<div class="reveal">';
+    html += '<div class="who">' + esc(mp.name) + '님의 결과</div>';
+    html += '<div class="result">' + esc(doc.results[finalCol]) + '</div>';
+    html += '<div class="num">' + (mp.col + 1) + '번을 선택했어요</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function showMyReveal(doc, mp){
+    var slot = document.getElementById("revealSlot");
+    if (slot) slot.innerHTML = revealCardHtml(doc, mp);
+  }
+
+  function refreshParticipateArea(doc, picks){
+    var pslot = document.getElementById("participateSlot");
+    if (!pslot) return;
+    var takenCount = Object.keys(picks || {}).length;
+    if (takenCount >= doc.results.length){
+      pslot.innerHTML = allDoneCardHtml();
+      return;
+    }
+    var nameInput = document.getElementById("nameInput");
+    if (nameInput) nameInput.value = "";
+    var hint = document.getElementById("pickHint");
+    if (hint) hint.textContent = "";
+  }
+
+  function logItemHtml(col, name, result){
+    var isWin = result && result !== "행운";
+    var resultHtml = isWin
+      ? '<span class="log-result log-win">' + esc(result) + '</span>' +
+        '<span class="log-win-tag">당첨</span>' +
+        '<span class="log-notes">♩♫♪ ♫♪♪ ♪~~~~~</span>'
+      : '<span class="log-result">' + esc(result) + '</span>';
+    return '<div class="log-item"><div class="log-badge" style="background:' + colorOf(col) + '">' + (col + 1) + '</div>' +
+      '<div class="log-name">' + esc(name) + '</div>' +
+      '<div class="log-arrow">→</div>' +
+      '<div class="log-result-wrap">' + resultHtml + '</div></div>';
+  }
+
+  function appendLogRow(col, name, result){
+    var log = document.getElementById("resultLog");
+    if (!log) return;
+    var empty = log.querySelector(".log-empty");
+    if (empty) empty.remove();
+    log.insertAdjacentHTML("beforeend", logItemHtml(col, name, result));
+  }
+
+  function renderLive(doc, picks){
+    var cols = doc.results.length;
+    var rows = doc.bridges.length;
+
+    var sidePad = 34;
+    var colSpacing = 58;
+    var topMargin = 66;
+    var rowH = 26;
+    var bottomMargin = 48;
+    var width = sidePad * 2 + (cols - 1) * colSpacing;
+    var height = topMargin + rows * rowH + bottomMargin;
+
+    function xOf(c){ return sidePad + c * colSpacing; }
+    var laddersTopY = topMargin;
+    var laddersBottomY = topMargin + rows * rowH;
+    var circleCy = topMargin - 34;
+
+    layout = { sidePad: sidePad, colSpacing: colSpacing, topMargin: topMargin, rowH: rowH, circleCy: circleCy, xOf: xOf };
+
+    var svg = '<svg viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" xmlns="http://www.w3.org/2000/svg">';
+
+    // vertical column lines
+    for (var c = 0; c < cols; c++){
+      svg += '<line x1="' + xOf(c) + '" y1="' + laddersTopY + '" x2="' + xOf(c) + '" y2="' + laddersBottomY + '" stroke="' + colorOf(c) + '" stroke-width="3" stroke-linecap="round" opacity="0.55"/>';
+    }
+    // rungs
+    for (var r = 0; r < rows; r++){
+      var rowArr = doc.bridges[r];
+      var midY = topMargin + r * rowH + rowH / 2;
+      for (var g = 0; g < rowArr.length; g++){
+        if (rowArr[g]){
+          svg += '<line x1="' + xOf(g) + '" y1="' + midY + '" x2="' + xOf(g + 1) + '" y2="' + midY + '" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/>';
+        }
+      }
+    }
+    // highlight path layer (monkeys + trails are appended here live)
+    svg += '<g id="highlightLayer"></g>';
+
+    // top number buttons (+ the picker's name once claimed)
+    for (var c2 = 0; c2 < cols; c2++){
+      var taken = picks && picks[c2];
+      svg += '<g class="col-btn ' + (taken ? 'taken' : '') + '" data-col="' + c2 + '">';
+      svg += '<circle cx="' + xOf(c2) + '" cy="' + circleCy + '" r="24" fill="transparent" pointer-events="all"/>';
+      svg += '<circle cx="' + xOf(c2) + '" cy="' + circleCy + '" r="15" class="btn-circle" fill="' + (taken ? 'var(--line)' : colorOf(c2)) + '" opacity="' + (taken ? '0.55' : '1') + '"/>';
+      svg += '<text x="' + xOf(c2) + '" y="' + (circleCy + 5) + '" text-anchor="middle" font-size="13" font-weight="800" fill="' + (taken ? 'var(--muted)' : '#1a1530') + '">' + (c2 + 1) + '</text>';
+      if (taken){
+        var pshort = shortLabel(taken.name || "", 5);
+        svg += '<text x="' + xOf(c2) + '" y="' + (topMargin - 6) + '" text-anchor="middle" font-size="9.5" font-weight="700" fill="' + colorOf(c2) + '">' + esc(pshort) + '</text>';
+      }
+      svg += '</g>';
+    }
+
+    // bottom result boxes — blank/hidden until some monkey actually arrives there
+    var boxW = 46, boxH = 20;
+    for (var c3 = 0; c3 < cols; c3++){
+      var isRevealed = !!revealedFinal[c3];
+      var bx = xOf(c3) - boxW / 2;
+      var by = laddersBottomY + 8;
+      svg += '<g class="result-slot" data-rescol="' + c3 + '">';
+      svg += '<rect class="result-box" x="' + bx + '" y="' + by + '" width="' + boxW + '" height="' + boxH + '" rx="6" ' +
+        'fill="' + (isRevealed ? colorOf(c3) : 'none') + '" fill-opacity="' + (isRevealed ? '0.18' : '0') + '" ' +
+        'stroke="' + (isRevealed ? colorOf(c3) : 'var(--line)') + '" stroke-width="1.4" stroke-dasharray="' + (isRevealed ? '0' : '3,3') + '"/>';
+      var label = isRevealed ? shortLabel(doc.results[c3]) : "?";
+      svg += '<text class="result-label" x="' + xOf(c3) + '" y="' + (by + boxH / 2 + 4) + '" text-anchor="middle" font-size="' + (isRevealed ? '11' : '13') + '" font-weight="700" fill="' + (isRevealed ? 'var(--ink)' : 'var(--muted)') + '">' + esc(label) + '</text>';
+      svg += '</g>';
+    }
+
+    svg += '</svg>';
+
+    var pickList = Object.keys(picks).map(function(k){
+      return { col: parseInt(k, 10), name: picks[k].name, ts: picks[k].ts };
+    }).sort(function(a, b){ return a.ts - b.ts; });
+
+    var html = '';
+    html += '<div class="top-actions" id="topActions"><button class="icon-btn" id="resetBtn">↺ 초기화</button></div>';
+    html += '<div class="brand"><span class="mark">🐒</span><h1>몽키 사다리 게임</h1></div>';
+    if (localOnly){
+      html += '<div class="banner">이 기기에서만 진행 중이에요. 다른 사람과 실시간으로 같은 화면을 보려면 공유가 지원되는 환경에서 다시 열어주세요.</div>';
+    }
+
+    html += '<div id="revealSlot">';
+    if (myPick && picks[myPick.col]){
+      html += revealCardHtml(doc, myPick);
+    }
+    html += '</div>';
+
+    html += '<div class="card"><h2>사다리</h2>';
+    html += '<div class="muted" style="margin-bottom:10px;">' + cols + '명 · ' + rows + '행 · 원숭이가 도착해야 결과가 열려요</div>';
+    html += '<div class="ladder-scroll" id="ladderScroll">' + svg + '</div>';
+    html += '</div>';
+
+    html += '<div id="participateSlot">';
+    if (pickList.length < cols){
+      html += participateCardHtml();
+    } else {
+      html += allDoneCardHtml();
+    }
+    html += '</div>';
+
+    html += '<div class="card">';
+    html += '<h2>참여 현황</h2>';
+    html += '<div class="result-log" id="resultLog">';
+    if (pickList.length === 0){
+      html += '<div class="log-empty">아직 아무도 번호를 선택하지 않았어요.</div>';
+    } else {
+      pickList.forEach(function(p){
+        var f = traceFinalCol(p.col, doc.bridges);
+        html += logItemHtml(p.col, p.name, doc.results[f]);
+      });
+    }
+    html += '</div></div>';
+
+    html += '<div class="footer-note">번호를 한 번 선택하면 바꿀 수 없고, 같은 번호는 한 사람만 선택할 수 있어요. 여러 명이 동시에 골라도 각자의 몽키가 따로따로 사다리를 내려가요.</div>';
+
+    root.innerHTML = html;
+
+    document.getElementById("resetBtn").onclick = function(){
+      var box = document.getElementById("topActions");
+      box.innerHTML =
+        '<span class="muted" style="margin-right:2px;">초기화할까요?</span>' +
+        '<button class="icon-btn" id="resetCancelBtn">취소</button>' +
+        '<button class="icon-btn" id="resetConfirmBtn" style="color:var(--danger);border-color:var(--danger);">초기화</button>';
+      document.getElementById("resetCancelBtn").onclick = function(){ render(); };
+      document.getElementById("resetConfirmBtn").onclick = resetGame;
+    };
+
+    root.querySelectorAll(".col-btn").forEach(function(gEl){
+      gEl.addEventListener("click", function(){
+        var col = parseInt(gEl.getAttribute("data-col"), 10);
+        onColumnClick(col);
+      });
+    });
+
+    pickList.forEach(function(p){ animatedCols[p.col] = true; });
+  }
+
+  // ---------- targeted (non-destructive) live updates ----------
+  function markColumnTakenLive(col, name){
+    var svgEl = document.querySelector("#ladderScroll svg");
+    if (!svgEl) return;
+    var g = svgEl.querySelector('.col-btn[data-col="' + col + '"]');
+    if (!g || g.classList.contains("taken")) return;
+    g.classList.add("taken");
+    var circle = g.querySelector(".btn-circle");
+    var text = g.querySelector("text");
+    if (circle){ circle.setAttribute("fill", "var(--line)"); circle.setAttribute("opacity", "0.55"); }
+    if (text){ text.setAttribute("fill", "var(--muted)"); }
+    if (!g.querySelector(".picker-name") && layout){
+      var ns = "http://www.w3.org/2000/svg";
+      var nameEl = document.createElementNS(ns, "text");
+      nameEl.setAttribute("class", "picker-name");
+      nameEl.setAttribute("x", layout.xOf(col));
+      nameEl.setAttribute("y", layout.topMargin - 6);
+      nameEl.setAttribute("text-anchor", "middle");
+      nameEl.setAttribute("font-size", "9.5");
+      nameEl.setAttribute("font-weight", "700");
+      nameEl.setAttribute("fill", colorOf(col));
+      nameEl.textContent = shortLabel(name || "", 5);
+      g.appendChild(nameEl);
+    }
+  }
+
+  function revealResultBox(col, text){
+    var svgEl = document.querySelector("#ladderScroll svg");
+    if (!svgEl) return;
+    var g = svgEl.querySelector('.result-slot[data-rescol="' + col + '"]');
+    if (!g) return;
+    var rect = g.querySelector(".result-box");
+    var label = g.querySelector(".result-label");
+    if (rect){
+      rect.setAttribute("fill", colorOf(col));
+      rect.setAttribute("fill-opacity", "0.18");
+      rect.setAttribute("stroke", colorOf(col));
+      rect.setAttribute("stroke-dasharray", "0");
+    }
+    if (label){
+      label.textContent = shortLabel(text);
+      label.setAttribute("font-size", "11");
+      label.setAttribute("fill", "var(--ink)");
+    }
+  }
+
+  // ---------- monkey walk animation ----------
+  function animDuration(rows){
+    return Math.max(4200, Math.min(7000, 1800 + rows * 300));
+  }
+
+  function playAnimation(col, doc, done){
+    var svgEl = document.querySelector("#ladderScroll svg");
+    if (!svgEl || !layout){ if (done) done(); return; }
+    var xOf = layout.xOf, topMargin = layout.topMargin, rowH = layout.rowH;
+    var built = buildPathPoints(col, doc.bridges, xOf, topMargin, rowH);
+    var d = pointsToPath(built.points);
+    var layer = svgEl.querySelector("#highlightLayer");
+    var ns = "http://www.w3.org/2000/svg";
+
+    var path = document.createElementNS(ns, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", colorOf(col));
+    path.setAttribute("stroke-width", "5");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("opacity", "0.9");
+    layer.appendChild(path);
+    var len = path.getTotalLength();
+    path.style.strokeDasharray = len + " " + len;
+    path.style.strokeDashoffset = len;
+
+    var monkey = document.createElementNS(ns, "text");
+    monkey.setAttribute("font-size", "32");
+    monkey.setAttribute("text-anchor", "middle");
+    monkey.textContent = "🐒";
+    monkey.setAttribute("x", xOf(col));
+    monkey.setAttribute("y", topMargin);
+    layer.appendChild(monkey);
+
+    var duration = animDuration(doc.bridges.length);
+    playMonkeyWalkSound(duration);
+    var start = null;
+
+    function ease(t){ return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+    function frame(ts){
+      if (start === null) start = ts;
+      var t = Math.min(1, (ts - start) / duration);
+      var distance = ease(t) * len;
+      var pt = path.getPointAtLength(distance);
+      var hop = Math.abs(Math.sin(t * Math.PI * 16)) * 7;
+      monkey.setAttribute("x", pt.x);
+      monkey.setAttribute("y", pt.y - 14 - hop);
+      path.style.strokeDashoffset = String(len - distance);
+      if (t < 1){
+        requestAnimationFrame(frame);
+      } else {
+        setTimeout(function(){
+          if (monkey.parentNode) monkey.remove();
+          if (done) done();
+        }, 250);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- click / claim flow ----------
+  function showTakenHint(){
+    var hint = document.getElementById("pickHint");
+    if (hint) hint.textContent = "방금 다른 사람이 그 번호를 먼저 선택했어요. 다른 번호를 골라주세요.";
+  }
+
+  function finishClaim(doc, col, name){
+    myPick = { col: col, name: name };
+    try{ localStorage.setItem("ladder_mypick_v2", JSON.stringify(myPick)); }catch(e){}
+    animatedCols[col] = true;
+    markColumnTakenLive(col, name);
+    playAnimation(col, doc, function(){
+      var finalCol = traceFinalCol(col, doc.bridges);
+      revealedFinal[finalCol] = true;
+      revealResultBox(finalCol, doc.results[finalCol]);
+      appendLogRow(col, name, doc.results[finalCol]);
+      showMyReveal(doc, myPick);
+      var picks = localOnly ? (localDoc.picks || {}) : picksMap;
+      maybeCelebrate(picks, doc);
+      checkWinnerConfetti(doc, col);
+    });
+  }
+
+  function onColumnClick(col){
+    var doc = localOnly ? localDoc : gameData;
+    if (!doc || doc.status !== "live") return;
+    var picks = localOnly ? (localDoc.picks || {}) : picksMap;
+    if (picks[col]) return; // already taken
+    if (claimInProgress) return;
+
+    var nameInput = document.getElementById("nameInput");
+    var name = nameInput ? nameInput.value.trim() : "";
+    if (!name){
+      var hint = document.getElementById("pickHint");
+      if (hint) hint.textContent = "이름을 먼저 입력해주세요.";
+      if (nameInput) nameInput.focus();
+      return;
+    }
+
+    if (localOnly){
+      localDoc.picks = localDoc.picks || {};
+      localDoc.picks[col] = { name: name, ts: Date.now() };
+      refreshParticipateArea(doc, localDoc.picks);
+      finishClaim(localDoc, col, name);
+      return;
+    }
+
+    claimInProgress = true;
+    var settled = false;
+    var fallbackTimer = setTimeout(function(){
+      // safety net: if the write hangs for any reason, don't leave the tap
+      // looking dead — reveal locally after a few seconds
+      if (settled) return;
+      settled = true;
+      claimInProgress = false;
+      delete animatedCols[col];
+      finishClaim(doc, col, name);
+    }, 5000);
+
+    try{
+      var slotRef = picksRef.child(String(col));
+      // atomic claim: Firebase runs this against the live server value, so two
+      // people tapping the same number at once can never both "win" it
+      slotRef.transaction(function(current){
+        if (current === null || current === undefined){
+          return { name: name, ts: Date.now() };
+        }
+        return; // abort — already taken by someone else
+      }, function(error, committed, snapshot){
+        if (settled) return;
+        settled = true;
+        clearTimeout(fallbackTimer);
+        claimInProgress = false;
+        if (error){
+          console.error(error);
+          finishClaim(doc, col, name); // reveal locally even if the shared write failed
+          return;
+        }
+        if (!committed){
+          showTakenHint();
+          render();
+          return;
+        }
+        animatedCols[col] = true;
+        picksMap[col] = snapshot.val();
+        refreshParticipateArea(gameData, picksMap);
+        finishClaim(gameData, col, name);
+      });
+    }catch(err){
+      console.error(err);
+      if (!settled){
+        settled = true;
+        clearTimeout(fallbackTimer);
+        claimInProgress = false;
+        delete animatedCols[col];
+        finishClaim(doc, col, name);
+      }
+    }
+  }
+
+  // ---------- reconciling shared snapshots ----------
+  function reseedFromPicks(){
+    if (!gameData || !gameData.bridges) return;
+    Object.keys(picksMap).forEach(function(k){
+      var c = parseInt(k, 10);
+      animatedCols[c] = true;
+      var f = traceFinalCol(c, gameData.bridges);
+      revealedFinal[f] = true;
+    });
+  }
+
+  function tryInitialRender(){
+    if (didInitialRender) return;
+    if (!gameReady || !picksReady) return;
+    didInitialRender = true;
+    reseedFromPicks();
+    render();
+  }
+
+  function handleGameUpdate(data){
+    var prevData = gameData;
+    var isNewRound = !!(gameReady && prevData && data && data.createdAt !== prevData.createdAt);
+    gameData = data || null;
+    gameReady = true;
+
+    if (isNewRound){
+      animatedCols = {};
+      revealedFinal = {};
+      celebratedForCreatedAt = null;
+      picksMap = {};
+      if (myPick){
+        myPick = null;
+        try{ localStorage.removeItem("ladder_mypick_v2"); }catch(e){}
+      }
+      reseedFromPicks();
+      render();
+      return;
+    }
+
+    if (!didInitialRender){
+      tryInitialRender();
+      return;
+    }
+
+    render();
+  }
+
+  function handlePicksUpdate(col, data, isRemoved){
+    if (isRemoved){
+      delete picksMap[col];
+      return;
+    }
+    var wasKnown = animatedCols[col];
+    picksMap[col] = data;
+    if (!didInitialRender) return; // still in the initial batch, tryInitialRender() will seed this
+    if (wasKnown) return; // e.g. this is my own pick, already handled by finishClaim
+    animatedCols[col] = true;
+    markColumnTakenLive(col, data.name);
+    refreshParticipateArea(gameData, picksMap);
+    playAnimation(col, gameData, function(){
+      var finalCol = traceFinalCol(col, gameData.bridges);
+      revealedFinal[finalCol] = true;
+      revealResultBox(finalCol, gameData.results[finalCol]);
+      appendLogRow(col, data.name, gameData.results[finalCol]);
+      maybeCelebrate(picksMap, gameData);
+      checkWinnerConfetti(gameData, col);
+    });
+  }
+
+  // ---------- boot ----------
+  // Fill this in with your own Firebase project's config (Firebase console >
+  // Project settings > General > "Your apps" > SDK setup and configuration).
+  // Realtime Database must be enabled for the project.
+  var firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  function boot(){
+    try{
+      if (!window.firebase || firebaseConfig.apiKey === "YOUR_API_KEY"){
+        localOnly = true;
+        localDraftResults = defaultResults();
+        render();
+        return;
+      }
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      gameRef = db.ref("game/state");
+      picksRef = db.ref("game/state/picks");
+
+      gameRef.on("value", function(snap){
+        handleGameUpdate(snap.exists() ? snap.val() : null);
+      }, function(err){
+        console.error("game db error", err);
+        if (!gameReady){
+          localOnly = true;
+          localDraftResults = defaultResults();
+          gameReady = true; picksReady = true;
+          render();
+        }
+      });
+
+      picksRef.once("value").then(function(snap){
+        var val = snap.val() || {};
+        Object.keys(val).forEach(function(k){ picksMap[parseInt(k, 10)] = val[k]; });
+        picksReady = true;
+        tryInitialRender();
+
+        picksRef.on("child_added", function(csnap){
+          var col = parseInt(csnap.key, 10);
+          handlePicksUpdate(col, csnap.val(), false);
+        });
+        picksRef.on("child_removed", function(csnap){
+          var col = parseInt(csnap.key, 10);
+          handlePicksUpdate(col, null, true);
+        });
+      }).catch(function(err){
+        console.error("picks db error", err);
+        picksReady = true;
+        tryInitialRender();
+      });
+    }catch(e){
+      console.error(e);
+      localOnly = true;
+      localDraftResults = defaultResults();
+      gameReady = true; picksReady = true;
+      render();
+    }
+  }
+
+  boot();
+})();
+
+
+</body>
+</html>
